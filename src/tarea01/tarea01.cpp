@@ -3,6 +3,9 @@
 #include <turtlesim/Pose.h>
 #include <geometry_msgs/Twist.h>
 #include <math.h>
+#include <iostream>
+#include <string>
+#include <sstream>
 //#include "turtlesim/Velocity.h>
 
 // Function declarations
@@ -17,19 +20,33 @@ bool STOP = true;                                                       // to ho
 turtlesim::Pose CurPose;                                                // to hold current pose
 geometry_msgs::Pose2D DesPose;                                          // variable to hold desired pose
 ros::Publisher pub;
-
+int t;
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "TurtlesimPositionController_pubsub");
     ros::NodeHandle nh;
+    if (argc == 2)
+    {
+        t = atoi( argv [1] );
+        //char *my_string;
+        //STOP =f
+        //}else{
+        //printf("no\n");
 
+ // getline(&my_string, 10);
+ //cout << "You entered: " << input << endl << endl;
+    }else{
+        printf("Error en el número de argumentos, sólo indicar t \n");
+        ros::shutdown();
+    }
+    //Pub advertise type twist
     pub = nh.advertise<geometry_msgs::Twist>("turtle1/cmd_vel", 1000);
 
     // register sub to get desired position/pose commands
     ros::Subscriber ComPose_sub = nh.subscribe("/turtle1/PositionCommand", 5, ComPoseCallback);
     // register sub to get current position/pose
     ros::Subscriber CurPose_sub = nh.subscribe("/turtle1/pose", 5, CurPoseCallback);
-    // register pub to send twist velocity (cmd_vel)
+   // register pub to send twist velocity (cmd_vel)
     //ros::Publisher Twist_pub = n.advertise<turtlesim::Velocity>("/turtle1/command_velocity", 100);
 
     ros::Rate rate(10);
@@ -43,14 +60,14 @@ int main(int argc, char **argv)
         if (STOP == false)                                              // and no stop command
         {
             geometry_msgs::Twist msg;
-            msg.linear.x = 0.5*getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y);
+            msg.linear.x = .5*getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y);
             msg.linear.y = 0;
             msg.linear.z = 0;
             msg.angular.x = 0;
             msg.angular.y = 0;
             msg.angular.z = 2*(atan2(DesPose.y - CurPose.y, DesPose.x - CurPose.x)-CurPose.theta);
             pub.publish(msg);
-            if (getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y)<1)
+            if (getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y)==.1)
             {
                 STOP=true;
             }
