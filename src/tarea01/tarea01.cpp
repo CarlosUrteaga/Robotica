@@ -7,48 +7,47 @@
 #include <string>
 #include <sstream>
 //#include "turtlesim/Velocity.h>
+//Global Funciton
 
-// Function declarations
 void ComPoseCallback(const geometry_msgs::Pose2D::ConstPtr& msg);
 void CurPoseCallback(const turtlesim::Pose::ConstPtr& msg);
-float GetErrorLin(turtlesim::Pose curpose, geometry_msgs::Pose2D despose);
-float GetErrorAng(turtlesim::Pose curpose, geometry_msgs::Pose2D despose);
 double getDistance(double x1, double y1, double x2, double y2);
 // Global variables
-bool STOP = true;                                                       // to hold stop flag, wait till first command given
-//turtlesim::Velocity CmdVel;
-turtlesim::Pose CurPose;                                                // to hold current pose
-geometry_msgs::Pose2D DesPose;                                          // variable to hold desired pose
+// to hold stop flag, wait till first command given
+bool STOP = true;
+bool firstRead =false;
+bool rotateB = false;
+int safeLoop;
+//total distance
+float distance;
+// to hold current pose
+turtlesim::Pose CurPose;
+// variable to hold desired pose
+geometry_msgs::Pose2D DesPose;
+
+// variable to hold desired pose
 ros::Publisher pub;
 int t;
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "TurtlesimPositionController_pubsub");
     ros::NodeHandle nh;
+    //time by argv, is not elegant but work
     if (argc == 2)
     {
         t = atoi( argv [1] );
-        //char *my_string;
-        //STOP =f
-        //}else{
-        //printf("no\n");
 
- // getline(&my_string, 10);
- //cout << "You entered: " << input << endl << endl;
     }else{
         printf("Error en el número de argumentos, sólo indicar t \n");
         ros::shutdown();
     }
     //Pub advertise type twist
     pub = nh.advertise<geometry_msgs::Twist>("turtle1/cmd_vel", 1000);
-
-    // register sub to get desired position/pose commands
+    // goal position
     ros::Subscriber ComPose_sub = nh.subscribe("/turtle1/PositionCommand", 5, ComPoseCallback);
-    // register sub to get current position/pose
+    // get actual location
     ros::Subscriber CurPose_sub = nh.subscribe("/turtle1/pose", 5, CurPoseCallback);
-   // register pub to send twist velocity (cmd_vel)
-    //ros::Publisher Twist_pub = n.advertise<turtlesim::Velocity>("/turtle1/command_velocity", 100);
-
+   
     ros::Rate rate(10);
     float ErrorLin = 0;
     float ErrorAng = 0;
@@ -59,76 +58,75 @@ int main(int argc, char **argv)
         ros::spinOnce();
         if (STOP == false)                                              // and no stop command
         {
+        	if (firstRead)
+        	{
+        		distance = getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y);
+        		firstRead=false;
+        	}
             geometry_msgs::Twist msg;
-            msg.linear.x = .5*getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y);
+            msg.linear.x = getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y)*.5*distance/(t-1);
             msg.linear.y = 0;
             msg.linear.z = 0;
             msg.angular.x = 0;
             msg.angular.y = 0;
             msg.angular.z = 2*(atan2(DesPose.y - CurPose.y, DesPose.x - CurPose.x)-CurPose.theta);
             pub.publish(msg);
-            if (getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y)==.1)
+            if (getDistance(CurPose.x, CurPose.y, DesPose.x, DesPose.y)<.3)
             {
-                STOP=true;
+            	rotateB=true;
+            	STOP=true;
+            	safeLoop=0;
+
             }
         }
-        else
-        {
-            printf("Waiting...\n");
+        if(rotateB){
+            printf("rotating...\n");
+            int distanceAngle =DesPose.theta-CurPose.theta;
+                 	if ((atan2(DesPose.y - CurPose.y, DesPose.x - CurPose.x)-CurPose.theta)>1)
+                 	{
+			            geometry_msgs::Twist msg;
+			            msg.linear.x = .0;
+			            msg.linear.y = 0;
+			            msg.linear.z = 0;
+			            msg.angular.x = 0;
+			            msg.angular.y = 0;
+			            msg.angular.z = 1*(atan2(DesPose.y - CurPose.y, DesPose.x - CurPose.x)-CurPose.theta);
+			            pub.publish(msg);
+			            if (safeLoop<5)
+			            {
+			            	safeLoop++;
+			            }else
+			            	ros::shutdown();	
+                 	}else{
+                 		ros::shutdown();
+                 		printf("shutdown...\n");
+                 	}
         }
-        rate.sleep();
+        rate.sleep();//Done
     }
 }
 
+//Euclidian distance
 double getDistance(double x1, double y1, double x2, double y2){
     return sqrt(pow((x2-x1),2) + pow((y2-y1),2));
 }
 
-// call back to send new desired Pose msgs
-void ComPoseCallback(const geometry_msgs::Pose2D::ConstPtr& msg)            
+// Get new pos from turtlebot
+void ComPoseCallback(const geometry_msgs::Pose2D::ConstPtr& msg)
 {
-    STOP = false;                                                       // start loop
-    DesPose.x = msg->x;                                                 // copy msg to varible to use elsewhere
+    STOP = false;
+    firstRead =true;
+    DesPose.x = msg->x;
     DesPose.y = msg->y;
-    //CmdVel.angular += 1;
+    DesPose.theta = msg->theta;
     return;
 }
 
-// call back to send new current Pose msgs
-void CurPoseCallback(const turtlesim::Pose::ConstPtr& msg)          
+// Get actual position
+void CurPoseCallback(const turtlesim::Pose::ConstPtr& msg)
 {
     CurPose.x = msg->x;
     CurPose.y = msg->y;
-    CurPose.theta = msg->theta;                                         // copy msg to varible to use elsewhere
+    CurPose.theta = msg->theta;
     return;
-}/*
-float GetErrorAng(turtlesim::Pose curpose, geometry_msgs::Pose2D despose)
-{
-    // create error vector
-    float Ex = despose.x - curpose.x;                                   // Error X. X component 
-    float Ey = despose.y - curpose.y;                                   // Error Y. Y component 
-
-    // get desire angle
-    float dest = atan2f(Ey, Ex);                                        // use float version to get arc tangent
-
-    // get angle error
-    float Et = dest - curpose.theta;
-
-    //~ ROS_INFO("Ex: %f, Ey: %f, Et: %f", Ex, Ey, Et);
-    return Et;
 }
-
-// function to get linear error from the turtles perspective. Error only along turtle X axis
-float GetErrorLin(turtlesim::Pose curpose, geometry_msgs::Pose2D despose)
-{
-    // create error vector
-    float Ex = despose.x - curpose.x;                                   // Error X. X component
-    float Ey = despose.y - curpose.y;                                   // Error Y. Y component 
-    float Et = GetErrorAng(curpose, despose);                           // get angle between vectors
-
-    // project error onto turtle x axis
-    //~ float Etx =  pow( pow(Ex,2.0) + pow(Ey,2.0), 0.5 )*cos(Et);
-    float Etx = hypotf(Ex, Ey)*cos(Et); // improved c function
-
-    return Etx;
-}*/

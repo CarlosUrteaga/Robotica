@@ -17,6 +17,12 @@ geometry_msgs/Twist.h
 -
 math.h
 -
+iostream
+-
+string
+-
+sstream
+-
 
 /opt/ros/indigo/include/XmlRpcDecl.h
 ros/macros.h
